@@ -1,0 +1,17 @@
+{
+  "city": "moscow",
+  "pizza_name": "Пицца Энчантикс",
+  "country_code": "RU",
+  "country_id": 643,
+  "culture": "ru-RU",
+  "locality_id": "0000002b-0000-0000-0000-000000000000",
+  "fetch_mode": "auto",
+  "check_city_menu": true,
+  "check_pizzerias": true,
+  "only_open_pizzerias": true,
+  "show_missing_pizzerias": false,
+  "api_version": "v5",
+  "menu_type": "delivery",
+  "telegram_bot_token": "",
+  "telegram_chat_id": ""
+}
