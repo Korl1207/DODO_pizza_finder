@@ -36,6 +36,13 @@ class TelegramClient:
             raise RuntimeError("Telegram returned an unexpected getUpdates response")
         return result
 
+    def get_me(self) -> dict[str, Any]:
+        data = self._request("getMe", {})
+        result = data.get("result", {})
+        if not isinstance(result, dict):
+            raise RuntimeError("Telegram returned an unexpected getMe response")
+        return result
+
     def _request(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.base_url}/{method}"
         body = json.dumps(payload).encode("utf-8")

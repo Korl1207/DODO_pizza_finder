@@ -55,6 +55,9 @@ class PizzeriaResult:
     found: bool
     matches: list[str]
     url: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class ProductLinkParser(HTMLParser):
@@ -163,6 +166,9 @@ class DodoClient:
                     found=bool(matched_names),
                     matches=matched_names,
                     url=get_pizzeria_url(pizzeria),
+                    address=format_pizzeria_address(pizzeria.get("address")),
+                    latitude=get_pizzeria_latitude(pizzeria),
+                    longitude=get_pizzeria_longitude(pizzeria),
                 )
             )
         return results
@@ -217,6 +223,9 @@ class DodoClient:
                             "id": str(pizzeria_id),
                             "name": str(pizzeria_name),
                             "url": get_pizzeria_url(pizzeria) or "",
+                            "address": format_pizzeria_address(pizzeria.get("address")) or "",
+                            "latitude": get_pizzeria_latitude(pizzeria),
+                            "longitude": get_pizzeria_longitude(pizzeria),
                             "menuUrl": self._pizzeria_menu_url(str(pizzeria_id)),
                         }
                     )
@@ -477,6 +486,9 @@ class DodoClient:
                             found=bool(available_matches),
                             matches=list(dict.fromkeys(available_matches)),
                             url=str(item["url"]) if item.get("url") else None,
+                            address=str(item["address"]) if item.get("address") else None,
+                            latitude=parse_coordinate_value(item.get("latitude")),
+                            longitude=parse_coordinate_value(item.get("longitude")),
                         )
                     )
 
@@ -765,6 +777,63 @@ def get_pizzeria_url(pizzeria: dict[str, Any]) -> str | None:
         if isinstance(url, str) and url:
             return f"{BASE_URL}{url}" if url.startswith("/") else url
     return None
+
+
+def get_pizzeria_latitude(pizzeria: dict[str, Any]) -> float | None:
+    latitude, _ = get_pizzeria_coordinates(pizzeria)
+    return latitude
+
+
+def get_pizzeria_longitude(pizzeria: dict[str, Any]) -> float | None:
+    _, longitude = get_pizzeria_coordinates(pizzeria)
+    return longitude
+
+
+def get_pizzeria_coordinates(pizzeria: dict[str, Any]) -> tuple[float | None, float | None]:
+    candidates = [
+        pizzeria.get("coordinates"),
+        pizzeria.get("coordinate"),
+        pizzeria.get("location"),
+        pizzeria.get("position"),
+        pizzeria.get("point"),
+        pizzeria.get("geoPosition"),
+        pizzeria.get("geoPoint"),
+        pizzeria.get("address"),
+    ]
+    for candidate in candidates:
+        latitude, longitude = parse_coordinate_pair(candidate)
+        if latitude is not None and longitude is not None:
+            return latitude, longitude
+    return None, None
+
+
+def parse_coordinate_pair(value: Any) -> tuple[float | None, float | None]:
+    if isinstance(value, dict):
+        latitude = parse_coordinate_value(
+            pick_first(value, ["latitude", "lat", "Latitude", "Lat", "y", "Y"])
+        )
+        longitude = parse_coordinate_value(
+            pick_first(value, ["longitude", "lng", "lon", "Longitude", "Lng", "Lon", "x", "X"])
+        )
+        if latitude is not None and longitude is not None:
+            return latitude, longitude
+
+        coordinates = value.get("coordinates")
+        if isinstance(coordinates, list) and len(coordinates) >= 2:
+            longitude = parse_coordinate_value(coordinates[0])
+            latitude = parse_coordinate_value(coordinates[1])
+            if latitude is not None and longitude is not None:
+                return latitude, longitude
+    return None, None
+
+
+def parse_coordinate_value(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def format_pizzeria_address(address: Any) -> str | None:

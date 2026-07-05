@@ -1,6 +1,6 @@
 {
   "city": "moscow",
-  "pizza_name": "Пепперони",
+  "pizza_name": "Энчантикс",
   "country_code": "RU",
   "country_id": 643,
   "culture": "ru-RU",
@@ -10,8 +10,16 @@
   "check_pizzerias": true,
   "only_open_pizzerias": true,
   "show_missing_pizzerias": false,
+  "pizzeria_preview_limit": 5,
   "api_version": "v5",
   "menu_type": "delivery",
+  "nearby_results_limit": 10,
+  "distance_api_url": "https://router.project-osrm.org",
+  "distance_api_profile": "driving",
+  "distance_api_batch_size": 25,
+  "bot_state_path": ".bot_state.json",
+  "pending_location_ttl_seconds": 900,
   "telegram_bot_token": "",
-  "telegram_chat_id": ""
+  "telegram_chat_id": "",
+  "telegram_bot_username": ""
 }
