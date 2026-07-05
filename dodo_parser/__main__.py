@@ -11,8 +11,8 @@ from .notify import notify_telegram
 from .report import build_report, load_config
 
 
-def run_once(config: dict) -> None:
-    report = build_report(config)
+def run_once(config: dict, pizza_name: str | None = None) -> None:
+    report = build_report(config, pizza_name=pizza_name)
     print(report)
 
     token = config.get("telegram_bot_token")
@@ -25,6 +25,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check Dodo Pizza product availability.")
     parser.add_argument("--config", default="config.json", help="Path to JSON config.")
     parser.add_argument(
+        "--pizza-name",
+        default=None,
+        help="Override pizza_name from config for this run only.",
+    )
+    parser.add_argument(
         "--interval",
         type=int,
         default=0,
@@ -33,7 +38,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--bot",
         action="store_true",
-        help="Run Telegram bot with a check button.",
+        help="Run Telegram bot that checks only on explicit commands.",
     )
     return parser.parse_args(argv)
 
@@ -53,16 +58,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.interval <= 0:
         try:
-            run_once(config)
+            run_once(config, pizza_name=args.pizza_name)
             return 0
-        except DodoHTTPError as exc:
+        except (DodoHTTPError, RuntimeError) as exc:
             print(f"Ошибка проверки: {exc}", file=sys.stderr)
             return 1
 
     while True:
         try:
-            run_once(config)
-        except DodoHTTPError as exc:
+            run_once(config, pizza_name=args.pizza_name)
+        except (DodoHTTPError, RuntimeError) as exc:
             print(f"Ошибка проверки: {exc}", file=sys.stderr)
         time.sleep(args.interval)
 

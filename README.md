@@ -7,13 +7,14 @@
 
 1. Скрипт открывает `https://dodopizza.ru/moscow`.
 2. Достает ссылки вида `/moscow/product/...`.
-3. Ищет нужное название, например `Пицца Энчантикс`.
+3. Ищет пиццу по названию из `config.json` или по временному override.
 4. Если обычный HTTP-запрос получает антибот-страницу, включается браузерный
    режим Playwright.
 
 Для проверки по конкретным кафе в коде есть слой для внутренних эндпоинтов Dodo:
-`/api/pizzerias` и `/api/{version}/menu/...`. Эти запросы могут получать `403`,
-если запускать их без браузерных cookie/заголовков.
+`/api/pizzerias` и `/api/{version}/menu/...`. В режиме `fetch_mode: "auto"`
+запросы по кафе идут из браузерного контекста, а при сбое браузерного `fetch`
+используется запасной путь через Playwright request context.
 
 ## Быстрый старт
 
@@ -26,13 +27,19 @@ Copy-Item config.example.json config.json
 python -m dodo_parser --config config.json
 ```
 
+Разово проверить другую пиццу без правки конфига:
+
+```powershell
+python -m dodo_parser --config config.json --pizza-name "Пепперони"
+```
+
 Проверять каждые 10 минут:
 
 ```powershell
 python -m dodo_parser --config config.json --interval 600
 ```
 
-Запустить Telegram-бота с кнопкой:
+Запустить Telegram-бота:
 
 ```powershell
 python -m dodo_parser --config config.json --bot
@@ -45,13 +52,19 @@ python -m dodo_parser --config config.json --bot
 ```json
 {
   "city": "moscow",
-  "pizza_name": "Пицца Энчантикс",
+  "pizza_name": "Пепперони",
   "fetch_mode": "auto",
   "check_city_menu": true,
   "check_pizzerias": true,
   "show_missing_pizzerias": false
 }
 ```
+
+`pizza_name` используется как значение по умолчанию везде:
+
+- при обычном запуске `python -m dodo_parser`
+- при циклическом запуске с `--interval`
+- в боте при команде `/check_pizza` без аргумента
 
 `fetch_mode`:
 
@@ -73,21 +86,28 @@ python -m dodo_parser --config config.json --bot
 Если поля пустые, отчет просто выводится в консоль.
 
 В режиме `--bot` бот работает через long polling, поэтому на сервере не нужен
-публичный HTTPS-адрес и webhook. Пользователь пишет `/start`, получает кнопку
-`Проверить сейчас`, нажимает ее и получает список кафе, где пицца найдена на
-момент запроса.
+публичный HTTPS-адрес и webhook.
 
-Для группы есть команда:
+Бот выполняет проверку только по явной команде и не показывает кнопку.
+
+Команды:
 
 ```text
 /check_pizza
+/check
 ```
 
-Она проверяет пиццу из `config.json`. Можно временно указать другое название:
+Они проверяют пиццу из `config.json`, то есть текущее значение `pizza_name`.
+
+Можно временно указать другое название:
 
 ```text
-/check_pizza Пицца Энчантикс
+/check_pizza Пепперони
+/check Мясная
 ```
+
+Команды `/start` и `/help` только показывают подсказку. Обычные сообщения бот
+игнорирует.
 
 ## Проверка по кафе
 
@@ -99,6 +119,5 @@ python -m dodo_parser --config config.json --bot
    `/api/{version}/menu/{menu_type}/countries/RU/pizzerias/{pizzeriaId}?cultures=ru-RU&subcategoriesInMenu=false`.
 3. Искать нужное название в JSON-ответе.
 
-В `fetch_mode: "auto"` этот слой запускается через Playwright, чтобы запросы
-шли из браузерного контекста. Если Dodo поменяет защиту или формат API, бот
-вернет понятную ошибку вместо ложного списка.
+Если Dodo поменяет защиту или формат API, бот вернет понятную ошибку вместо
+ложного списка.
