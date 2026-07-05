@@ -24,12 +24,18 @@ class BotCommandTests(unittest.TestCase):
 
     def test_extract_bot_mention_query_returns_remaining_text(self) -> None:
         self.assertEqual(
-            _extract_bot_mention_query("@dodo_test_bot где заказать", "dodo_test_bot"),
+            _extract_bot_mention_query("@dodo_test_bot где заказать", ["dodo_test_bot"]),
             "\u0433\u0434\u0435 \u0437\u0430\u043a\u0430\u0437\u0430\u0442\u044c",
         )
 
     def test_extract_bot_mention_query_ignores_other_mentions(self) -> None:
-        self.assertIsNone(_extract_bot_mention_query("@another_bot где заказать", "dodo_test_bot"))
+        self.assertIsNone(_extract_bot_mention_query("@another_bot где заказать", ["dodo_test_bot"]))
+
+    def test_extract_bot_mention_query_accepts_any_known_username(self) -> None:
+        self.assertEqual(
+            _extract_bot_mention_query("@real_bot где заказать", ["wrong_bot", "real_bot"]),
+            "\u0433\u0434\u0435 \u0437\u0430\u043a\u0430\u0437\u0430\u0442\u044c",
+        )
 
 
 if __name__ == "__main__":

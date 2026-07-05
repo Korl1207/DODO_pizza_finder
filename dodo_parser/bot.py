@@ -42,7 +42,8 @@ def run_bot(config: dict) -> None:
     allowed_chat_id = str(config.get("telegram_chat_id") or "").strip()
     client = TelegramClient(token=token)
     state = BotState(config.get("bot_state_path", ".bot_state.json"))
-    bot_username = _resolve_bot_username(client, config)
+    bot_usernames = _resolve_bot_usernames(client, config)
+    primary_bot_username = bot_usernames[0] if bot_usernames else None
     pending_location_ttl_seconds = int(config.get("pending_location_ttl_seconds", 900) or 900)
     offset: int | None = None
 
@@ -85,7 +86,7 @@ def run_bot(config: dict) -> None:
 
             text = (message.get("text") or "").strip()
             if text in {"/start", "/help"}:
-                client.send_message(chat_id=chat_id, text=_render_help_text(bot_username))
+                client.send_message(chat_id=chat_id, text=_render_help_text(primary_bot_username))
                 continue
 
             command_arg = _extract_check_argument(text)
@@ -101,13 +102,13 @@ def run_bot(config: dict) -> None:
                     client.send_message(chat_id=chat_id, text=chunk)
                 continue
 
-            mention_query = _extract_bot_mention_query(text, bot_username)
+            mention_query = _extract_bot_mention_query(text, bot_usernames)
             if mention_query is not None and user_id:
                 pizza_name = _resolve_mention_pizza_name(config, state, chat_id, mention_query)
                 if pizza_name is None:
                     client.send_message(
                         chat_id=chat_id,
-                        text=_render_template_text(LOCATION_REQUEST_NEEDS_PIZZA_TEXT, bot_username),
+                        text=_render_template_text(LOCATION_REQUEST_NEEDS_PIZZA_TEXT, primary_bot_username),
                     )
                     continue
                 state.set_last_pizza(chat_id, pizza_name)
@@ -120,7 +121,10 @@ def run_bot(config: dict) -> None:
 
             command, _ = _parse_command(text)
             if command:
-                client.send_message(chat_id=chat_id, text=_render_template_text(UNKNOWN_COMMAND_TEXT, bot_username))
+                client.send_message(
+                    chat_id=chat_id,
+                    text=_render_template_text(UNKNOWN_COMMAND_TEXT, primary_bot_username),
+                )
 
         time.sleep(1)
 
@@ -142,14 +146,20 @@ def _extract_check_argument(text: str) -> str | None:
     return argument
 
 
-def _extract_bot_mention_query(text: str, bot_username: str | None) -> str | None:
-    if not bot_username:
+def _extract_bot_mention_query(text: str, bot_usernames: list[str] | tuple[str, ...] | None) -> str | None:
+    if not bot_usernames:
         return None
 
-    pattern = re.compile(rf"@{re.escape(bot_username)}\b", re.IGNORECASE)
-    if not pattern.search(text):
+    cleaned_text = text
+    matched = False
+    for bot_username in bot_usernames:
+        pattern = re.compile(rf"@{re.escape(bot_username)}\b", re.IGNORECASE)
+        if pattern.search(cleaned_text):
+            cleaned_text = pattern.sub(" ", cleaned_text)
+            matched = True
+    if not matched:
         return None
-    return _cleanup_free_text(pattern.sub(" ", text))
+    return _cleanup_free_text(cleaned_text)
 
 
 def _resolve_mention_pizza_name(
@@ -193,16 +203,20 @@ def _cleanup_free_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip(" \t\r\n,.:;!?-")
 
 
-def _resolve_bot_username(client: TelegramClient, config: dict) -> str | None:
+def _resolve_bot_usernames(client: TelegramClient, config: dict) -> list[str]:
+    usernames: list[str] = []
     configured_username = str(config.get("telegram_bot_username") or "").strip().lstrip("@")
-    if configured_username:
-        return configured_username
     try:
         me = client.get_me()
     except RuntimeError:
-        return None
-    username = str(me.get("username") or "").strip().lstrip("@")
-    return username or None
+        actual_username = ""
+    else:
+        actual_username = str(me.get("username") or "").strip().lstrip("@")
+
+    for username in [actual_username, configured_username]:
+        if username and username not in usernames:
+            usernames.append(username)
+    return usernames
 
 
 def _render_help_text(bot_username: str | None) -> str:
