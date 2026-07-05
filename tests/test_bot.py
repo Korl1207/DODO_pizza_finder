@@ -1,6 +1,11 @@
 import unittest
 
-from dodo_parser.bot import _extract_bot_mention_query, _extract_check_argument, _parse_command
+from dodo_parser.bot import (
+    _extract_bot_mention_query,
+    _extract_check_argument,
+    _extract_nearby_argument,
+    _parse_command,
+)
 
 
 class BotCommandTests(unittest.TestCase):
@@ -21,6 +26,14 @@ class BotCommandTests(unittest.TestCase):
         self.assertIsNone(_extract_check_argument("\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0441\u0435\u0439\u0447\u0430\u0441"))
         self.assertIsNone(_extract_check_argument("\u043f\u0440\u0438\u0432\u0435\u0442"))
         self.assertIsNone(_extract_check_argument("/start"))
+
+    def test_extract_nearby_argument_supports_optional_pizza_name(self) -> None:
+        self.assertEqual(_extract_nearby_argument("/nearby \u041f\u0435\u043f\u043f\u0435\u0440\u043e\u043d\u0438"), "\u041f\u0435\u043f\u043f\u0435\u0440\u043e\u043d\u0438")
+        self.assertEqual(_extract_nearby_argument("/where"), "")
+
+    def test_extract_nearby_argument_ignores_unrelated_text(self) -> None:
+        self.assertIsNone(_extract_nearby_argument("/check"))
+        self.assertIsNone(_extract_nearby_argument("\u0433\u0434\u0435 \u0437\u0430\u043a\u0430\u0437\u0430\u0442\u044c"))
 
     def test_extract_bot_mention_query_returns_remaining_text(self) -> None:
         self.assertEqual(

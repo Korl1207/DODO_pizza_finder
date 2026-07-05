@@ -10,28 +10,32 @@ from .report import build_nearby_report, build_report, resolve_pizza_name
 
 
 CHECK_COMMANDS = {"/check", "/check_pizza"}
+NEARBY_COMMANDS = {"/nearby", "/where"}
 HELP_TEXT = (
-    "Проверка запускается командами или через @mention + геопозицию.\n"
+    "Проверка запускается командами, а для поиска рядом можно прислать геопозицию.\n"
     "По умолчанию бот берет `pizza_name` из config.json.\n"
     "Команды:\n"
     "/check_pizza - проверить пиццу из config.json\n"
     "/check_pizza Пепперони - временно проверить другую пиццу\n"
     "/check - короткий алиас для /check_pizza\n"
+    "/nearby - попросить геопозицию и найти ближайшие точки для последней пиццы\n"
+    "/nearby Пепперони - сначала сменить пиццу, затем попросить геопозицию\n"
+    "/where - короткий алиас для /nearby\n"
     "@botname где заказать - бот попросит геопозицию и найдёт ближайшие точки\n"
     "@botname Пепперони - бот запомнит пиццу и попросит геопозицию"
 )
 UNKNOWN_COMMAND_TEXT = (
-    "Доступны команды /check_pizza и /check.\n"
+    "Доступны команды /check_pizza, /check, /nearby и /where.\n"
     "Без аргумента используется pizza_name из config.json.\n"
     "С аргументом ищется указанная пицца, например: /check_pizza Пепперони.\n"
-    "В общем чате можно написать @botname и затем отправить геопозицию."
+    "Для поиска рядом используйте /nearby или /where, затем отправьте геопозицию."
 )
 CHECK_FAILED_PREFIX = "Проверка не выполнена: "
 LOCATION_REQUEST_TEXT = "Пришлите геопозицию Telegram следующим сообщением, и я найду ближайшие 10 пиццерий."
 LOCATION_REQUEST_NEEDS_PIZZA_TEXT = (
-    "Сначала скажите, какую пиццу искать: /check_pizza Пепперони или @botname Пепперони."
+    "Сначала скажите, какую пиццу искать: /check_pizza Пепперони, /nearby Пепперони или @botname Пепперони."
 )
-LOCATION_EXPIRED_TEXT = "Не нашёл активный запрос на геопозицию. Сначала напишите @botname где заказать."
+LOCATION_EXPIRED_TEXT = "Не нашёл активный запрос на геопозицию. Сначала напишите /nearby или @botname где заказать."
 
 
 def run_bot(config: dict) -> None:
@@ -102,6 +106,23 @@ def run_bot(config: dict) -> None:
                     client.send_message(chat_id=chat_id, text=chunk)
                 continue
 
+            nearby_arg = _extract_nearby_argument(text)
+            if nearby_arg is not None and user_id:
+                pizza_name = _resolve_nearby_pizza_name(config, state, chat_id, nearby_arg)
+                if pizza_name is None:
+                    client.send_message(
+                        chat_id=chat_id,
+                        text=_render_template_text(LOCATION_REQUEST_NEEDS_PIZZA_TEXT, primary_bot_username),
+                    )
+                    continue
+                state.set_last_pizza(chat_id, pizza_name)
+                state.set_pending_location_request(chat_id, user_id, pizza_name)
+                client.send_message(
+                    chat_id=chat_id,
+                    text=f"Ищу ближайшие точки для '{pizza_name}'. {LOCATION_REQUEST_TEXT}",
+                )
+                continue
+
             mention_query = _extract_bot_mention_query(text, bot_usernames)
             if mention_query is not None and user_id:
                 pizza_name = _resolve_mention_pizza_name(config, state, chat_id, mention_query)
@@ -146,6 +167,13 @@ def _extract_check_argument(text: str) -> str | None:
     return argument
 
 
+def _extract_nearby_argument(text: str) -> str | None:
+    command, argument = _parse_command(text)
+    if command not in NEARBY_COMMANDS:
+        return None
+    return argument
+
+
 def _extract_bot_mention_query(text: str, bot_usernames: list[str] | tuple[str, ...] | None) -> str | None:
     if not bot_usernames:
         return None
@@ -177,6 +205,24 @@ def _resolve_mention_pizza_name(
         except RuntimeError:
             return None
     return mention_query
+
+
+def _resolve_nearby_pizza_name(
+    config: dict,
+    state: BotState,
+    chat_id: str,
+    command_arg: str,
+) -> str | None:
+    if command_arg:
+        return command_arg
+
+    last_pizza = state.get_last_pizza(chat_id)
+    if last_pizza:
+        return last_pizza
+    try:
+        return resolve_pizza_name(config)
+    except RuntimeError:
+        return None
 
 
 def _looks_like_nearby_request(text: str) -> bool:
